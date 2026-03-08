@@ -1,0 +1,247 @@
+@import "tailwindcss";
+@source "../../src/nodes";
+
+@import "tw-animate-css";
+
+@custom-variant light (&:is(.light *));
+
+/*
+ * Deepvis Design Manual
+ * ---------------------
+ * Fonts:
+ *   - Display: DM Sans (Bold, 18-32pt)
+ *   - Body: Fira Sans (Regular, 12-16pt)
+ *   - Info: Work Sans (6-8pt)
+ *
+ * Color Palette (Vibrant variant):
+ *   - #8fd4bc - Light mint
+ *   - #5ec9a3 - Mint PRIMARY
+ *   - #3aad86 - Dark green
+ *   - #4d514f - Dark gray (Pantone 7540c)
+ *   - #919191 - Medium gray (Pantone 877c)
+ *   - #f4f4f4 - Light gray (Pantone 663c)
+ *
+ * Principles:
+ *   - Rounded corners (friendly, user-friendly)
+ *   - Gradients with green nuances
+ *   - Gray tones for backgrounds, mint/green for focus points
+ *   - Minimalist with contrast
+ */
+
+/* Dark mode (default) - gray background with mint/green focus */
+:root {
+  --radius: 0.375rem;
+
+  /* Deepvis Color Palette - Official Pantone */
+  --deepvis-mint-light: #b1d7c9;
+  --deepvis-mint: #a0d0be;
+  --deepvis-green: #70c1a3;
+  --deepvis-gray-dark: #4d514f;
+  --deepvis-gray: #919191;
+  --deepvis-gray-light: #f4f4f4;
+
+  /* Semantic Colors - Dark Mode */
+  --background: #4d514f;
+  --foreground: #f4f4f4;
+  --card: rgba(244, 244, 244, 0.05);
+  --card-foreground: #f4f4f4;
+  --popover: rgba(244, 244, 244, 0.05);
+  --popover-foreground: #f4f4f4;
+  --primary: #70c1a3;
+  --primary-foreground: #1a2f26;
+  --secondary: #919191;
+  --secondary-foreground: #ffffff;
+  --muted: rgba(145, 145, 145, 0.3);
+  --muted-foreground: #919191;
+  --accent: #70c1a3;
+  --accent-foreground: #ffffff;
+  --destructive: #e57373;
+  --destructive-foreground: #ffffff;
+  --border: rgba(145, 145, 145, 0.3);
+  --input: rgba(145, 145, 145, 0.2);
+  --ring: #70c1a3;
+  --chart-1: #70c1a3;
+  --chart-2: #a0d0be;
+  --chart-3: #b1d7c9;
+  --chart-4: #919191;
+  --chart-5: #f4f4f4;
+
+  /* Canvas background (run/analytics pages) */
+  --bg-canvas: #141616;
+  --dot-color: rgba(74, 85, 80, 0.8);
+
+  /* Surface layers */
+  --surface-1: #18181b;
+  --surface-2: #27272a;
+  --surface-3: #3f3f46;
+  --surface-border: rgba(145, 145, 145, 0.12);
+  --surface-border-hover: rgba(145, 145, 145, 0.25);
+
+  /* Text layers */
+  --text-1: #f4f4f4;
+  --text-2: #a1a1aa;
+  --text-3: #555;
+
+  /* Topbar */
+  --topbar-bg: rgba(18, 18, 20, 0.88);
+
+  /* Sidebar */
+  --sidebar: #4d514f;
+  --sidebar-foreground: #f4f4f4;
+  --sidebar-primary: #70c1a3;
+  --sidebar-primary-foreground: #1a2f26;
+  --sidebar-accent: #70c1a3;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(145, 145, 145, 0.2);
+  --sidebar-ring: #70c1a3;
+}
+
+/* Light mode variant */
+.light {
+  --background: #e8ecea;
+  --foreground: #2a2e2c;
+  --card: #ffffff;
+  --card-foreground: #2a2e2c;
+  --popover: #ffffff;
+  --popover-foreground: #2a2e2c;
+  --primary: #3aad86;
+  --primary-foreground: #ffffff;
+  --secondary: #eef0ef;
+  --secondary-foreground: #2a2e2c;
+  --muted: rgba(77, 81, 79, 0.08);
+  --muted-foreground: #6b7170;
+  --accent: #3aad86;
+  --accent-foreground: #ffffff;
+  --destructive: #d94f4f;
+  --destructive-foreground: #ffffff;
+  --border: rgba(77, 81, 79, 0.22);
+  --input: rgba(77, 81, 79, 0.12);
+  --ring: #3aad86;
+  --chart-1: #3aad86;
+  --chart-2: #70c1a3;
+  --chart-3: #a0d0be;
+  --chart-4: #6b7170;
+  --chart-5: #2a2e2c;
+
+  /* Canvas background (run/analytics pages) */
+  --bg-canvas: #dde2df;
+  --dot-color: rgba(77, 81, 79, 0.25);
+
+  /* Surface layers */
+  --surface-1: #ffffff;
+  --surface-2: #f3f5f4;
+  --surface-3: #e5e9e7;
+  --surface-border: rgba(77, 81, 79, 0.18);
+  --surface-border-hover: rgba(77, 81, 79, 0.32);
+
+  /* Text layers */
+  --text-1: #1e2220;
+  --text-2: #4d514f;
+  --text-3: #7a7e7c;
+
+  /* Topbar */
+  --topbar-bg: rgba(255, 255, 255, 0.95);
+
+  /* Sidebar */
+  --sidebar: #f8faf9;
+  --sidebar-foreground: #2a2e2c;
+  --sidebar-primary: #3aad86;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #3aad86;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(77, 81, 79, 0.15);
+  --sidebar-ring: #3aad86;
+}
+
+@theme inline {
+  /* Border Radius - rounded corners per design manual */
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  /* Deepvis Official Color Tokens */
+  --color-deepvis-mint-light: var(--deepvis-mint-light);
+  --color-deepvis-mint: var(--deepvis-mint);
+  --color-deepvis-green: var(--deepvis-green);
+  --color-deepvis-gray-dark: var(--deepvis-gray-dark);
+  --color-deepvis-gray: var(--deepvis-gray);
+  --color-deepvis-gray-light: var(--deepvis-gray-light);
+
+  /* Semantic Color Tokens */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Deepvis Font Families */
+  --font-display: "DM Sans", system-ui, sans-serif;
+  --font-body: "Fira Sans", system-ui, sans-serif;
+  --font-info: "Work Sans", system-ui, sans-serif;
+  --font-sans: "Fira Sans", system-ui, sans-serif;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html, body, #app {
+    @apply h-full overflow-hidden;
+  }
+  body {
+    @apply bg-background text-foreground font-body antialiased;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display font-bold;
+  }
+  .text-info {
+    @apply font-info text-xs;
+  }
+}
+
+/* ── Print / PDF ────────────────────────────────────────────────────────── */
+@media print {
+  /* Reset layout so full page renders */
+  html, body, #app {
+    height: auto !important;
+    overflow: visible !important;
+  }
+}
+
+/* Deepvis Gradient Utilities */
+@layer utilities {
+  .gradient-deepvis {
+    background: linear-gradient(135deg, var(--deepvis-mint-light) 0%, var(--deepvis-mint) 50%, var(--deepvis-green) 100%);
+  }
+  .gradient-deepvis-subtle {
+    background: linear-gradient(135deg, var(--deepvis-gray-light) 0%, var(--deepvis-mint-light) 100%);
+  }
+}
