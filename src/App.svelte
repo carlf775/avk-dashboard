@@ -9,6 +9,8 @@
   import RunTab from '$lib/components/run/RunTab.svelte';
   import AnalyticsTab from '$lib/components/analytics/AnalyticsTab.svelte';
   import DatasetTab from '$lib/components/analytics/DatasetTab.svelte';
+  import RobinsonAnalyticsTab from '$lib/components/analytics/RobinsonAnalyticsTab.svelte';
+  import RobinsonReportTab from '$lib/components/analytics/RobinsonReportTab.svelte';
   import { createProgramStore } from '$lib/stores/program.svelte';
   import { createModulesStore } from '$lib/stores/modules.svelte';
   import { themeStore } from '$lib/stores/theme.svelte';
@@ -16,7 +18,7 @@
   const store = createProgramStore();
   const modulesStore = createModulesStore();
   let showVersionTree = $state(false);
-  let activeTab = $state<'editor' | 'run' | 'analytics' | 'dataset'>('editor');
+  let activeTab = $state<'editor' | 'run' | 'analytics' | 'dataset' | 'robinson' | 'robinson-report'>('editor');
 
   onMount(async () => {
     try {
@@ -56,6 +58,10 @@
       </div>
     {:else if activeTab === 'analytics'}
       <AnalyticsTab />
+    {:else if activeTab === 'robinson'}
+      <RobinsonAnalyticsTab />
+    {:else if activeTab === 'robinson-report'}
+      <RobinsonReportTab />
     {:else}
       <DatasetTab />
     {/if}

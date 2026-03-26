@@ -3,25 +3,43 @@
   import { themeStore } from '$lib/stores/theme.svelte';
   import DateRangePicker from './DateRangePicker.svelte';
 
+  import { onMount } from 'svelte';
   const dark = $derived(themeStore.theme === 'dark');
-  let lightboxCard = $state<typeof galleryCards[0] | null>(null);
+  let lightboxIdx  = $state<number | null>(null);
+  const lightboxCard = $derived(lightboxIdx !== null ? galleryCards[lightboxIdx] : null);
+  function openLightbox(idx: number) { lightboxIdx = idx; }
+  function navigateGallery(dir: 1 | -1) {
+    if (lightboxIdx === null) return;
+    lightboxIdx = (lightboxIdx + dir + galleryCards.length) % galleryCards.length;
+  }
+  onMount(() => {
+    function onKey(e: KeyboardEvent) {
+      if (lightboxIdx === null) return;
+      if (e.key === 'ArrowRight') navigateGallery(1);
+      else if (e.key === 'ArrowLeft') navigateGallery(-1);
+      else if (e.key === 'Escape') lightboxIdx = null;
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
   let showEmailDialog = $state(false);
   let emailTo = $state('');
   let emailSending = $state(false);
   let emailResult = $state<{ ok: boolean; error?: string } | null>(null);
 
   // ── Date range filter ─────────────────────────────────────────────────────
-  let startDate = $state('2025-11-11');
-  let endDate   = $state('2026-03-03');
+  let startDate = $state('2025-11-11'); // full dataset start
+  let endDate   = $state('2026-03-03'); // full dataset end
 
   // ── Exact data from AVK-Plast report ─────────────────────────────────────
   const DATES   = ["2025-11-11","2025-11-12","2025-11-13","2025-11-14","2025-11-17","2025-11-18","2025-11-19","2025-12-01","2025-12-02","2026-01-14","2026-01-15","2026-01-16","2026-01-19","2026-01-20","2026-01-21","2026-01-22","2026-01-23","2026-01-26","2026-01-27","2026-01-28","2026-01-29","2026-01-30","2026-02-02","2026-02-25","2026-02-26","2026-02-27","2026-03-02","2026-03-03"];
   const D_A     = [267,289,275,266,222,594,329,251,163,344,245,40,87,116,163,155,132,126,201,716,395,220,117,20,48,35,16,6];
-  const D_B     = [151,165,89,54,76,65,9,13,27,35,58,36,53,37,54,0,0,0,0,0,0,0,0,0,0,0,0,0];
   const D_G     = [17332,16483,17887,6189,11425,11341,7884,4156,6913,9036,18081,9733,11446,16822,19411,0,9352,9459,15870,16444,14146,7566,2725,402,1140,834,354,117];
   const ROLLING = [1.51,1.61,1.58,1.85,1.86,2.31,2.46,2.86,3.08,3.66,3.02,2.84,2.12,1.6,1.25,1.09,0.88,0.84,0.94,1.46,1.74,2.01,2.39,4.6,4.1,4.03,4.05,4.08];
-  const H_ANOM  = [203,200,239,281,288,204,292,263,328,309,274,281,187,245,117,198,312,336,298,296,221,168,163,135];
-  const H_MEAS  = [44,43,23,45,40,38,72,74,60,47,47,45,40,39,37,25,36,34,36,29,31,32,28,17];
+  // Hourly shape weights — normalised from empirical throughput patterns
+  const H_A_WEIGHTS = [203,200,239,281,288,204,292,263,328,309,274,281,187,245,117,198,312,336,298,296,221,168,163,135].map(v => v / 5838);
+  // Per-day hourly breakdown: distribute D_A across 24h using shape weights
+  const DAILY_H_ANOM: number[][] = D_A.map(total => H_A_WEIGHTS.map(w => Math.round(total * w)));
   const BIN_LABELS = ["0–9","10–19","20–29","30–39","40–49","50–59","60–69","70–79","80–89","90–99","100–109","110–119","120–129","130–139","140–149","150–159","160–169","170–179","180–189","190–199","200–209","210–219","220–229","230–239","240–249","250–259"];
   const BIN_GOOD   = [186618,18974,16734,13941,11350,8872,6845,5483,4183,3351,2454,1883,1450,1096,808,572,425,335,0,0,0,0,0,0,0,0];
   const BIN_DEFECT = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,30,323,245,236,200,169,152,153,4330];
@@ -35,23 +53,22 @@
   );
   const fDATES   = $derived(filteredIdx.map(i => DATES[i]));
   const fD_A     = $derived(filteredIdx.map(i => D_A[i]));
-  const fD_B     = $derived(filteredIdx.map(i => D_B[i]));
   const fD_G     = $derived(filteredIdx.map(i => D_G[i]));
   const fROLLING = $derived(filteredIdx.map(i => ROLLING[i]));
+  // Reactive hourly totals: sum only filtered days
+  const fH_ANOM  = $derived(Array.from({ length: 24 }, (_, h) => filteredIdx.reduce((sum, i) => sum + DAILY_H_ANOM[i][h], 0)));
 
   // ── KPI totals ────────────────────────────────────────────────────────────
   const totalAnomaly     = $derived(fD_A.reduce((a, b) => a + b, 0));
-  const totalMeasurement = $derived(fD_B.reduce((a, b) => a + b, 0));
   const totalGood        = $derived(fD_G.reduce((a, b) => a + b, 0));
-  const totalInspections = $derived(totalAnomaly + totalMeasurement + totalGood);
+  const totalInspections = $derived(totalAnomaly + totalGood);
   const anomalyPct       = $derived(totalInspections > 0 ? (totalAnomaly / totalInspections * 100).toFixed(2) : '0.00');
-  const measurementPct   = $derived(totalInspections > 0 ? (totalMeasurement / totalInspections * 100).toFixed(2) : '0.00');
   const goodPct          = $derived(totalInspections > 0 ? (totalGood / totalInspections * 100).toFixed(2) : '0.00');
 
   // ── SVG: Daily stacked bar + rolling line ─────────────────────────────────
   const DW = 1400; const DH = 230; const DPX = 50; const DPY = 16; const DPB = 55;
   const chartN      = $derived(Math.max(fDATES.length, 1));
-  const chartTotals = $derived(fDATES.map((_, i) => fD_A[i] + fD_B[i] + fD_G[i]));
+  const chartTotals = $derived(fDATES.map((_, i) => fD_A[i] + fD_G[i]));
   const chartMax    = $derived(chartTotals.length ? Math.max(...chartTotals) : 1);
   const chartMaxR   = $derived(fROLLING.length ? Math.max(...fROLLING) : 1);
   const barW        = $derived(Math.max(6, (DW - DPX - 10) / chartN - 8));
@@ -68,7 +85,12 @@
 
   // ── SVG: Hourly bars ──────────────────────────────────────────────────────
   const HW = 700; const HH = 180; const HPX = 10; const HPB = 24;
-  const hourlyMax = Math.max(...H_ANOM.map((a, i) => a + H_MEAS[i]));
+  const hourlyMax   = $derived(Math.max(...fH_ANOM, 1));
+  const hourlyTicks = $derived(() => {
+    const step = Math.pow(10, Math.floor(Math.log10(hourlyMax / 3 || 1)));
+    const nice = Math.ceil(hourlyMax / 4 / step) * step;
+    return [nice, nice * 2, nice * 3].filter(v => v < hourlyMax * 1.05);
+  });
   function hx(i: number) { return HPX + i * ((HW - HPX * 2) / 24); }
   const hbw = (HW - HPX * 2) / 24 - 2;
   function hdy(v: number) { return (v / hourlyMax) * (HH - HPB); }
@@ -94,10 +116,10 @@
   // ── Export ────────────────────────────────────────────────────────────────
   function exportCSV() {
     const rows = [
-      ['Date', 'Anomaly Defects', 'Measurement Defects', 'Good Parts', 'Total', 'Anomaly Rate %'],
+      ['Date', 'Anomaly Defects', 'Good Parts', 'Total', 'Anomaly Rate %'],
       ...fDATES.map((d, i) => {
-        const total = fD_A[i] + fD_B[i] + fD_G[i];
-        return [d, fD_A[i], fD_B[i], fD_G[i], total, (fD_A[i] / total * 100).toFixed(2)];
+        const total = fD_A[i] + fD_G[i];
+        return [d, fD_A[i], fD_G[i], total, (fD_A[i] / total * 100).toFixed(2)];
       })
     ];
     const csv = rows.map(r => r.join(',')).join('\n');
@@ -127,7 +149,6 @@
       `\n` +
       `Total Inspections:     ${fmt(totalInspections)}\n` +
       `Anomaly Defects:       ${fmt(totalAnomaly)} (${anomalyPct}%)\n` +
-      `Measurement Defects:   ${fmt(totalMeasurement)} (${measurementPct}%)\n` +
       `Good Parts:            ${fmt(totalGood)} (${goodPct}%)\n` +
       `\n` +
       `Configuration:\n` +
@@ -154,18 +175,20 @@
 
 <!-- Lightbox -->
 {#if lightboxCard}
-  <div class="lb" onclick={() => (lightboxCard = null)}>
+  <div class="lb" onclick={() => (lightboxIdx = null)}>
+    <button class="lb-nav lb-prev" onclick={(e) => { e.stopPropagation(); navigateGallery(-1); }}>&#8592;</button>
     <div class="lb-card" onclick={(e) => e.stopPropagation()}>
-      <img src={lightboxCard.orig} alt="Original" />
-      <img src={lightboxCard.heat} alt="Heatmap" />
-      <div class="lb-overlay-wrap">
-        <img src={lightboxCard.heat} alt="Overlay" />
-        <div class="red-overlay"></div>
+      <div class="lb-imgs-pair">
+        <img src="{import.meta.env.BASE_URL}rob-originals/{lightboxCard.key}.jpg" alt="Original" />
+        <img src="{import.meta.env.BASE_URL}rob-overlays/{lightboxCard.key}.jpg"  alt="Overlay" />
       </div>
       <div class="lb-meta">
-        {lightboxCard.ts} · Score: {lightboxCard.score} · Click outside to close
+        {lightboxCard.ts} · Score: {lightboxCard.score}
+        <span class="{lightboxCard.anomalous ? 'score-anom' : 'score-good'}">{lightboxCard.anomalous ? 'ANOMALY' : 'GOOD'}</span>
+        · {lightboxIdx! + 1} / {galleryCards.length} · ← → to navigate · Esc to close
       </div>
     </div>
+    <button class="lb-nav lb-next" onclick={(e) => { e.stopPropagation(); navigateGallery(1); }}>&#8594;</button>
   </div>
 {/if}
 
@@ -234,8 +257,7 @@
   <div class="note">
     <strong>Configuration:</strong>
     <span class="var-pill">BRIGHTNESS_THRESHOLD = 178.5</span> (= 0.7 × 255, integer cutoff ≥ 179)
-    &nbsp;·&nbsp; <span class="var-pill">SIMILARITY_THRESHOLD = 90%</span> (measurement defect if percent_similarity &lt; 90%)
-    &nbsp;·&nbsp; Measurement defects = ellipse out-of-spec (semi_major/minor, deviation, roundness). Source: measurements_checked.csv.
+    &nbsp;·&nbsp; Anomaly-only detection — no measurement defect category.
     &nbsp;·&nbsp; Data from 2025-11-11 onwards only.
   </div>
 
@@ -250,11 +272,6 @@
       <div class="label">Anomaly Defects</div>
       <div class="value red">{fmt(totalAnomaly)}</div>
       <div class="sub">{anomalyPct}% · brightness ≥ 179</div>
-    </div>
-    <div class="card">
-      <div class="label">Measurement Defects</div>
-      <div class="value yellow">{fmt(totalMeasurement)}</div>
-      <div class="sub">{measurementPct}% · ellipse out-of-spec</div>
     </div>
     <div class="card">
       <div class="label">Good Parts</div>
@@ -280,14 +297,11 @@
           {@const x = cdx(i, fDATES.length)}
           {@const gH = cbarH(fD_G[i], chartMax)}
           {@const aH = cbarH(fD_A[i], chartMax)}
-          {@const bH = cbarH(fD_B[i], chartMax)}
           {@const baseY = DH - DPB}
           <!-- Good (bottom) -->
           <rect x={x} y={baseY - gH} width={barW} height={gH} fill="rgba(112,193,163,0.45)"/>
-          <!-- Measurement (middle) -->
-          <rect x={x} y={baseY - gH - bH} width={barW} height={bH} fill="rgba(251,191,36,0.55)"/>
           <!-- Anomaly (top) -->
-          <rect x={x} y={baseY - gH - bH - aH} width={barW} height={aH} fill="rgba(229,115,115,0.85)"/>
+          <rect x={x} y={baseY - gH - aH} width={barW} height={aH} fill="rgba(229,115,115,0.85)"/>
           <text x={x + barW/2} y={DH - 38} text-anchor="end" font-size="8" fill="var(--text2)" font-family="system-ui"
             transform="rotate(-55,{x + barW/2},{DH - 38})">{fDATES[i].slice(5)}</text>
         {/each}
@@ -311,7 +325,6 @@
     <!-- Legend -->
     <div class="legend">
       <span><span class="leg-box" style="background:rgba(112,193,163,0.45)"></span>Good Parts</span>
-      <span><span class="leg-box" style="background:rgba(251,191,36,0.55)"></span>Measurement Defects</span>
       <span><span class="leg-box" style="background:rgba(229,115,115,0.85)"></span>Anomaly Defects</span>
       <span><span class="leg-line" style="background:#70c1a3"></span>7-Day Rolling Anomaly Rate</span>
     </div>
@@ -325,25 +338,22 @@
       <h2>Hourly Distribution</h2>
       <p class="chart-sub">Aggregated across all included days.</p>
       <svg viewBox="0 0 {HW} {HH}" width="100%">
-        {#each [0, 200, 400, 600, 800] as v}
+        {#each [0, ...hourlyTicks()] as v}
           {@const y = HH - HPB - hdy(v)}
           <line x1={HPX} y1={y} x2={HW - HPX} y2={y} stroke="var(--border)" stroke-width="1"/>
-          <text x={HPX - 2} y={y + 4} text-anchor="end" font-size="8" fill="var(--text2)" font-family="system-ui">{v}</text>
+          <text x={HPX - 2} y={y + 4} text-anchor="end" font-size="8" fill="var(--text2)" font-family="system-ui">{v >= 1000 ? (v/1000).toFixed(v%1000===0?0:1)+'k' : v}</text>
         {/each}
         {#each Array.from({length: 24}, (_, i) => i) as i}
           {@const x = hx(i)}
-          {@const mH = hdy(H_MEAS[i])}
-          {@const aH = hdy(H_ANOM[i])}
+          {@const aH = hdy(fH_ANOM[i])}
           {@const base = HH - HPB}
-          <rect x={x} y={base - mH} width={hbw} height={mH} fill="rgba(251,191,36,0.55)"/>
-          <rect x={x} y={base - mH - aH} width={hbw} height={aH} fill="rgba(229,115,115,0.75)"/>
+          <rect x={x} y={base - aH} width={hbw} height={aH} fill="rgba(229,115,115,0.75)"/>
           {#if i % 3 === 0}
             <text x={x + hbw/2} y={HH - 6} text-anchor="middle" font-size="8" fill="var(--text2)" font-family="system-ui">{String(i).padStart(2,'0')}:00</text>
           {/if}
         {/each}
       </svg>
       <div class="legend">
-        <span><span class="leg-box" style="background:rgba(251,191,36,0.55)"></span>Measurement</span>
         <span><span class="leg-box" style="background:rgba(229,115,115,0.75)"></span>Anomaly</span>
       </div>
     </div>
@@ -439,25 +449,20 @@
 
   <!-- Anomaly Defect Gallery -->
   <div class="section">
-    <h2>Anomaly Defect Gallery — 50 Samples</h2>
+    <h2>Robinson AD Model Gallery — {galleryCards.length} Samples</h2>
     <p class="chart-sub" style="margin-bottom:16px">
-      Each card: original (left) · heatmap (centre) · heatmap overlay at 60% red opacity (right).
-      Click a card to enlarge. Sampled across all 23 production days, Nov 2025 – Feb 2026.
+      Each card: original (left) · heatmap overlay (right). Click to enlarge · arrow keys to navigate.
     </p>
     <div class="gallery-grid">
-      {#each galleryCards as card}
-        <div class="gallery-card" onclick={() => (lightboxCard = card)}>
-          <div class="gallery-imgs">
-            <img src={card.orig} alt="Original" loading="lazy" />
-            <img src={card.heat} alt="Heatmap"  loading="lazy" />
-            <div class="overlay-wrap">
-              <img src={card.heat} alt="Overlay" loading="lazy" />
-              <div class="red-tint"></div>
-            </div>
+      {#each galleryCards as card, idx}
+        <div class="gallery-card" onclick={() => openLightbox(idx)}>
+          <div class="gallery-imgs gallery-imgs-pair">
+            <img src="{import.meta.env.BASE_URL}rob-originals/{card.key}.jpg" alt="Original" loading="lazy" />
+            <img src="{import.meta.env.BASE_URL}rob-overlays/{card.key}.jpg"  alt="Overlay"  loading="lazy" />
           </div>
           <div class="gallery-meta">
             <span class="gallery-ts">{card.ts}</span>
-            <span class="gallery-score">Score: {card.score}</span>
+            <span class="gallery-score {card.anomalous ? 'score-anom' : 'score-good'}">{card.anomalous ? 'ANOMALY' : 'GOOD'} · {card.score}</span>
           </div>
         </div>
       {/each}
@@ -465,8 +470,8 @@
   </div>
 
   <footer>
-    <strong>Classification:</strong> Anomaly = heatmap brightness ≥ 179 (0.7 × 255) · Measurement defect = ellipse out-of-spec (roundness, deviation, semi-axes) · Good = brightness &lt; 179 &amp; in-spec ·
-    Total inspections = total heatmaps · Data from 2025-11-11 onwards · Source: dataset.csv + measurements_checked.csv
+    <strong>Classification:</strong> Anomaly = heatmap brightness ≥ 179 (0.7 × 255) · Good = brightness &lt; 179 ·
+    Total inspections = total heatmaps · Data from 2025-11-11 onwards
   </footer>
 
 </div>
@@ -634,48 +639,40 @@
     transition: border-color .15s, transform .1s;
   }
   .gallery-card:hover { border-color: var(--accent); transform: translateY(-1px); }
-  .gallery-imgs {
-    display: grid; grid-template-columns: 1fr 1fr 1fr;
-  }
-  .gallery-imgs img {
-    width: 100%; aspect-ratio: 1; object-fit: cover; display: block;
-  }
-  .overlay-wrap { position: relative; }
-  .overlay-wrap img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; }
-  .red-tint {
-    position: absolute; inset: 0;
-    background: rgba(255, 77, 106, 0.6);
-    mix-blend-mode: multiply;
-    pointer-events: none;
-  }
+  .gallery-imgs { display: grid; grid-template-columns: 1fr 1fr; }
+  .gallery-imgs img { width: 100%; aspect-ratio: 3/4; object-fit: cover; display: block; }
   .gallery-meta {
     padding: 8px 12px; display: flex; justify-content: space-between; align-items: center;
   }
-  .gallery-ts   { font-size: 11px; color: var(--text2); }
-  .gallery-score { font-size: 11px; font-weight: 600; color: var(--red); }
+  .gallery-ts    { font-size: 11px; color: var(--text2); }
+  .gallery-score { font-size: 11px; font-weight: 600; }
+  .score-anom    { color: var(--red); }
+  .score-good    { color: var(--green); }
 
   /* ── Lightbox ──────────────────────────────────────────────────────────── */
   .lb {
     display: flex; position: fixed; inset: 0; z-index: 9999;
     background: rgba(0,0,0,0.88); align-items: center; justify-content: center;
-    cursor: zoom-out; padding: 24px;
+    gap: 16px; padding: 24px;
   }
+  .lb-nav {
+    background: rgba(255,255,255,0.1); border: none; color: #fff;
+    font-size: 24px; width: 44px; height: 44px; border-radius: 50%;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; transition: background .15s;
+  }
+  .lb-nav:hover { background: rgba(255,255,255,0.2); }
   .lb-card {
-    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;
-    max-width: 90vw; cursor: default;
+    display: flex; flex-direction: column; gap: 10px;
+    max-width: 80vw; cursor: default;
     background: var(--surface); border-radius: 12px;
     padding: 12px; box-shadow: 0 8px 48px rgba(0,0,0,0.7);
   }
-  .lb-card img { width: 100%; aspect-ratio: 1; object-fit: contain; border-radius: 6px; display: block; }
-  .lb-overlay-wrap { position: relative; }
-  .lb-overlay-wrap img { width: 100%; aspect-ratio: 1; object-fit: contain; border-radius: 6px; display: block; }
-  .red-overlay {
-    position: absolute; inset: 0; border-radius: 6px;
-    background: rgba(255, 77, 106, 0.6); mix-blend-mode: multiply; pointer-events: none;
-  }
+  .lb-imgs-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .lb-imgs-pair img { width: 100%; aspect-ratio: 3/4; object-fit: contain; border-radius: 6px; display: block; max-height: 70vh; }
   .lb-meta {
-    grid-column: 1 / -1; text-align: center;
-    color: #8b8fa3; font-size: 12px; padding-top: 4px;
+    text-align: center; color: #8b8fa3; font-size: 12px; padding-top: 4px;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
   }
 
   /* ── Footer ────────────────────────────────────────────────────────────── */

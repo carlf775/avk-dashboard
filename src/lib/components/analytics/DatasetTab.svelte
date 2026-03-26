@@ -1,13 +1,14 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import DatabaseIcon from '@lucide/svelte/icons/database';
+  import RobinsonAnalyticsTab from './RobinsonAnalyticsTab.svelte';
   import ActivityIcon from '@lucide/svelte/icons/activity';
   import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
   import ShieldCheckIcon from '@lucide/svelte/icons/shield-check';
   import ShieldAlertIcon from '@lucide/svelte/icons/shield-alert';
 
   // ── Sub-tab ────────────────────────────────────────────────────────────────
-  let activeSubTab = $state<'sam3' | 'ad'>('sam3');
+  let activeSubTab = $state<'sam3' | 'ad' | 'robinson'>('sam3');
 
   // ── SAM3 data ──────────────────────────────────────────────────────────────
   type Sample = {
@@ -22,11 +23,36 @@
     total: number; processed: number;
     defects: number; pass: number;
     defectPct: string; passPct: string;
-    classes: { crown: number; crown_under: number; crown_over: number; thread: number; cavity_markers: number; underfilling: number };
+    classes: Record<string, number>;
     hourly: { hour: number; total: number; defects: number }[];
     date: string;
     samples?: Sample[];
   };
+
+  // ── Robinson diverse dataset ───────────────────────────────────────────────
+  type RobSample = { key: string; ts: string; coverage: number; max_val: number; size_bucket: string; confidence: number };
+  let robSamples      = $state<RobSample[]>([]);
+  let loadingRob      = $state(false);
+  let errorRob        = $state('');
+  let lightboxRobIdx  = $state<number | null>(null);
+  const lightboxRob   = $derived(lightboxRobIdx !== null ? robSamples[lightboxRobIdx] : null);
+
+  async function loadRob() {
+    loadingRob = true; errorRob = '';
+    try {
+      const r = await fetch(import.meta.env.BASE_URL + 'robinson_diverse_gallery.json');
+      if (!r.ok) throw new Error('Gallery not generated yet — run generate_robinson_diverse_gallery.py');
+      const d = await r.json();
+      robSamples = d.samples ?? [];
+    } catch (e) {
+      errorRob = e instanceof Error ? e.message : 'Failed';
+    } finally { loadingRob = false; }
+  }
+
+  function navigateRob(dir: 1 | -1) {
+    if (lightboxRobIdx === null) return;
+    lightboxRobIdx = (lightboxRobIdx + dir + robSamples.length) % robSamples.length;
+  }
 
   // ── AD data ────────────────────────────────────────────────────────────────
   type AdSample = { key: string; path: string; brightness: number; anomaly: boolean; datetime: string; hour: number };
@@ -76,20 +102,24 @@
       if (e.key === 'ArrowRight') { e.preventDefault(); navigateAd(1); }
       else if (e.key === 'ArrowLeft') { e.preventDefault(); navigateAd(-1); }
       else if (e.key === 'Escape') lightboxAdSample = null;
+    } else if (lightboxRobIdx !== null) {
+      if (e.key === 'ArrowRight') { e.preventDefault(); navigateRob(1); }
+      else if (e.key === 'ArrowLeft') { e.preventDefault(); navigateRob(-1); }
+      else if (e.key === 'Escape') lightboxRobIdx = null;
     }
   }
 
   async function loadSam3() {
     loadingSam3 = true; errorSam3 = '';
     try {
-      const r = await fetch(import.meta.env.BASE_URL + 'sam3_results.json');
+      const r = await fetch(import.meta.env.BASE_URL + 'rob_sam3_results.json');
       if (!r.ok) throw new Error('Not found');
       sam3 = await r.json();
     } catch (e) {
       errorSam3 = e instanceof Error ? e.message : 'Failed';
     } finally { loadingSam3 = false; }
     try {
-      const r2 = await fetch(import.meta.env.BASE_URL + 'sam3_samples.json');
+      const r2 = await fetch(import.meta.env.BASE_URL + 'rob_sam3_results.json');
       if (r2.ok) annotatedSamples = await r2.json();
     } catch { /* optional */ }
   }
@@ -97,8 +127,8 @@
   async function loadAd() {
     loadingAd = true; errorAd = '';
     try {
-      const r = await fetch(import.meta.env.BASE_URL + 'ad_sam3_results.json');
-      if (!r.ok) throw new Error('AD stats not computed yet — run compute_ad_sam3.py');
+      const r = await fetch(import.meta.env.BASE_URL + 'rob_ad_results.json');
+      if (!r.ok) throw new Error('AD stats not computed yet — run generate Robinson AD data');
       ad = await r.json();
     } catch (e) {
       errorAd = e instanceof Error ? e.message : 'Failed';
@@ -106,7 +136,7 @@
   }
 
   onMount(() => {
-    loadSam3(); loadAd();
+    loadSam3(); loadAd(); loadRob();
     window.addEventListener('keydown', onKeydown);
     return () => window.removeEventListener('keydown', onKeydown);
   });
@@ -182,16 +212,18 @@
   const hbw = (HW - HPL - 4) / 24 - 2;
 
   const SAM3_CLASSES = [
-    { key: 'crown_under'  as const, label: 'Crown < 4',      color: '#e57373' },
-    { key: 'crown_over'   as const, label: 'Crown > 4',      color: '#fb923c' },
-    { key: 'thread'       as const, label: 'Thread',         color: '#fbbf24' },
-    { key: 'cavity_markers' as const, label: 'Cavity Markers', color: '#e57373' },
-    { key: 'underfilling' as const, label: 'Underfilling',   color: '#a78bfa' },
+    { key: 'black speck'   as const, label: 'Black Speck',    color: '#ff5050',  isDefect: true },
+    { key: 'dimples'       as const, label: 'Dimples',        color: '#8a2be2',  isDefect: true },
+    { key: 'groove'        as const, label: 'Groove',         color: '#00c8ff',  isDefect: true },
+    { key: 'dent'          as const, label: 'Dent',           color: '#fbbf24',  isDefect: true },
+    { key: 'discoloration' as const, label: 'Discoloration',  color: '#ffff00',  isDefect: true },
+    { key: 'sharpie'       as const, label: 'Sharpie',       color: '#ec4899',  isDefect: true },
+    { key: 'smiley'        as const, label: 'Smiley',        color: '#14b8a6',  isDefect: true },
+    { key: 'stripes'       as const, label: 'Stripes',       color: '#f97316',  isDefect: false },
   ];
 
-  type ClassKey = 'crown_under' | 'crown_over' | 'thread' | 'cavity_markers' | 'underfilling'
-               | 'ok' | 'defect'
-               | 'cavity_1' | 'cavity_2' | 'cavity_3' | 'cavity_4';
+  type ClassKey = 'black speck' | 'dimples' | 'groove' | 'dent' | 'discoloration' | 'sharpie' | 'smiley' | 'stripes'
+               | 'ok' | 'defect';
   let galleryFilters = $state<Set<ClassKey>>(new Set());
   let sidebarOpen = $state(false);
 
@@ -207,17 +239,14 @@
   const UNDERFILL_THRESH = 0.55;
 
   function matchesAny(sample: Sample): boolean {
-    if (galleryFilters.has('ok')             && !sample.defect_detected) return true;
-    if (galleryFilters.has('defect')         && sample.defect_detected) return true;
-    if (galleryFilters.has('crown_under')    && sample.crown < 4) return true;
-    if (galleryFilters.has('crown_over')     && sample.crown > 4) return true;
-    if (galleryFilters.has('thread')         && (sample.thread_conf ?? 0) >= THREAD_THRESH) return true;
-    if (galleryFilters.has('cavity_markers') && (sample.cavity_conf    ?? 0) >= CAVITY_THRESH) return true;
-    if (galleryFilters.has('underfilling')   && (sample.underfill_conf ?? 0) >= UNDERFILL_THRESH) return true;
-    if (galleryFilters.has('cavity_1')       && sample.cavity_markers === 1) return true;
-    if (galleryFilters.has('cavity_2')       && sample.cavity_markers === 2) return true;
-    if (galleryFilters.has('cavity_3')       && sample.cavity_markers === 3) return true;
-    if (galleryFilters.has('cavity_4')       && sample.cavity_markers === 4) return true;
+    if (galleryFilters.has('ok')     && !sample.defect_detected) return true;
+    if (galleryFilters.has('defect') && sample.defect_detected) return true;
+    const classes = (sample as any).rob_classes as string[] | undefined;
+    if (classes) {
+      for (const cls of galleryFilters) {
+        if (cls !== 'ok' && cls !== 'defect' && classes.includes(cls)) return true;
+      }
+    }
     return false;
   }
 
@@ -237,11 +266,15 @@
       <div class="lb-pair">
         <div class="lb-pair-col">
           <div class="lb-pair-label">Original</div>
-          <img src="{import.meta.env.BASE_URL}parts/{lightboxSample.key}.jpg" alt="original" class="lb-img"/>
+          <img src="{import.meta.env.BASE_URL}rob-seg-originals/{lightboxSample.key}.jpg" alt="original" class="lb-img"/>
+        </div>
+        <div class="lb-pair-col">
+          <div class="lb-pair-label">Heatmap</div>
+          <img src="{import.meta.env.BASE_URL}rob-seg-overlays/{lightboxSample.key}.jpg" alt="heatmap" class="lb-img"/>
         </div>
         <div class="lb-pair-col">
           <div class="lb-pair-label">SAM3 Segmentation</div>
-          <img src="{import.meta.env.BASE_URL}annotated/{lightboxSample.key}.jpg" alt="annotated" class="lb-img"/>
+          <img src="{import.meta.env.BASE_URL}rob-seg-annotated/{lightboxSample.key}.jpg" alt="annotated" class="lb-img"/>
         </div>
       </div>
       <div class="lb-info">
@@ -269,7 +302,7 @@
     <button class="lb-nav lb-nav-prev" onclick={(e) => { e.stopPropagation(); navigateAd(-1); }} aria-label="Previous">&#8592;</button>
     <div class="lb-inner lb-wide" onclick={(e) => e.stopPropagation()}>
       <img
-        src="{import.meta.env.BASE_URL}ad-annotated/{lightboxAdSample.key}.jpg"
+        src="{import.meta.env.BASE_URL}rob-seg-overlays/{lightboxAdSample.key}.jpg"
         alt={lightboxAdSample.key}
         class="lb-img"
       />
@@ -287,14 +320,44 @@
   </div>
 {/if}
 
+<!-- Robinson Lightbox -->
+{#if lightboxRob}
+  <div class="lightbox" onclick={() => (lightboxRobIdx = null)} role="dialog" aria-modal="true">
+    <button class="lb-nav lb-nav-prev" onclick={(e) => { e.stopPropagation(); navigateRob(-1); }} aria-label="Previous">&#8592;</button>
+    <div class="lb-inner lb-wide" onclick={(e) => e.stopPropagation()}>
+      <div class="lb-pair">
+        <div class="lb-pair-col">
+          <div class="lb-pair-label">Original</div>
+          <img src="{import.meta.env.BASE_URL}rob-diverse-originals/{lightboxRob.key}.jpg" alt="original" class="lb-img"/>
+        </div>
+        <div class="lb-pair-col">
+          <div class="lb-pair-label">Heatmap Overlay</div>
+          <img src="{import.meta.env.BASE_URL}rob-diverse-overlays/{lightboxRob.key}.jpg"  alt="overlay"  class="lb-img"/>
+        </div>
+      </div>
+      <div class="lb-info">
+        <div class="lb-key">{lightboxRob.ts} <span class="lb-counter">{lightboxRobIdx! + 1} / {robSamples.length}</span></div>
+        <div class="lb-tags">
+          <span class="lb-tag" style="color:#e57373">Coverage: {lightboxRob.coverage}%</span>
+          <span class="lb-tag" style="color:#fbbf24">Bucket: {lightboxRob.size_bucket}</span>
+          <span class="lb-tag" style="color:#70c1a3">Confidence: {lightboxRob.confidence}</span>
+          <span class="lb-tag" style="color:#aaa">Max val: {lightboxRob.max_val}</span>
+        </div>
+        <div class="lb-hint">← → to navigate · Esc to close</div>
+      </div>
+    </div>
+    <button class="lb-nav lb-nav-next" onclick={(e) => { e.stopPropagation(); navigateRob(1); }} aria-label="Next">&#8594;</button>
+  </div>
+{/if}
+
 <div class="wrap">
   <!-- Header -->
   <div class="header">
     <div class="header-left">
       <DatabaseIcon class="size-4" style="color:#70c1a3" />
       <div>
-        <h1 class="title">Real Dataset — AVK-Plast Jan 14, 2026</h1>
-        <p class="subtitle">5,036 real part images from S3</p>
+        <h1 class="title">Real Dataset — Robinson Sep 30 – Nov 12, 2025</h1>
+        <p class="subtitle">10,000 real bottle images from S3</p>
       </div>
     </div>
 
@@ -302,15 +365,19 @@
     <div class="subtabs">
       <button class="subtab {activeSubTab === 'sam3' ? 'subtab-active' : ''}" onclick={() => activeSubTab = 'sam3'}>
         <DatabaseIcon class="size-3.5" />
-        SAM3 · avk-ring/15
+        SAM3 · rob-bottle/4
       </button>
       <button class="subtab {activeSubTab === 'ad' ? 'subtab-active' : ''}" onclick={() => activeSubTab = 'ad'}>
         <ActivityIcon class="size-3.5" />
         Original AD Model
       </button>
+      <button class="subtab {activeSubTab === 'robinson' ? 'subtab-active' : ''}" onclick={() => activeSubTab = 'robinson'}>
+        <DatabaseIcon class="size-3.5" />
+        Robinson Diverse Dataset
+      </button>
     </div>
 
-    <button class="btn-icon" onclick={() => activeSubTab === 'sam3' ? loadSam3() : loadAd()} title="Refresh">
+    <button class="btn-icon" onclick={() => activeSubTab === 'sam3' ? loadSam3() : activeSubTab === 'ad' ? loadAd() : loadRob()} title="Refresh">
       <RefreshCwIcon class="size-3.5" />
     </button>
   </div>
@@ -335,7 +402,7 @@
           <div class="kpi-card">
             <div class="kpi-label">Total Units Inspected</div>
             <div class="kpi-value">{fmtNum(sam3.total)}</div>
-            <div class="kpi-sub">Jan 14, 2026</div>
+            <div class="kpi-sub">Sep 30 – Nov 12, 2025</div>
           </div>
           <div class="kpi-card">
             <div class="kpi-label">Defects</div>
@@ -458,7 +525,7 @@
             <div class="gallery-layout">
               <div class="gallery-main">
                 <div class="gallery-filters">
-                  <span class="gallery-filter-meta">Annotated with SAM3 · avk-ring/15</span>
+                  <span class="gallery-filter-meta">Annotated with SAM3 · rob-bottle/4</span>
                   {#each SAM3_CLASSES as cls}
                     {@const active = galleryFilters.has(cls.key)}
                     <button
@@ -474,9 +541,10 @@
                 <div class="gallery-grid">
                   {#each filteredSamples as sample}
                     <button class="gallery-card sam3-gallery-card" onclick={() => (lightboxSample = sample)}>
-                      <div class="gallery-img-wrap gallery-img-pair">
-                        <img src="{import.meta.env.BASE_URL}parts/{sample.key}.jpg" alt="original" loading="lazy" class="gallery-half"/>
-                        <img src="{import.meta.env.BASE_URL}annotated/{sample.key}.jpg" alt="annotated" loading="lazy" class="gallery-half"/>
+                      <div class="gallery-img-wrap gallery-img-triple">
+                        <img src="{import.meta.env.BASE_URL}rob-seg-originals/{sample.key}.jpg" alt="original" loading="lazy" class="gallery-third"/>
+                        <img src="{import.meta.env.BASE_URL}rob-seg-overlays/{sample.key}.jpg" alt="heatmap" loading="lazy" class="gallery-third"/>
+                        <img src="{import.meta.env.BASE_URL}rob-seg-annotated/{sample.key}.jpg" alt="annotated" loading="lazy" class="gallery-third"/>
                       </div>
                       <div class="gallery-meta">
                         <span class="gallery-key">{sample.key.slice(-8)}</span>
@@ -550,7 +618,7 @@
         <!-- Rule banner -->
         <div class="rule-banner">
           <span class="rule-label">Classification rule</span>
-          <span class="rule-text">Brightness score &gt; {ad.threshold} → <span style="color:#e57373">ANOMALY</span> &nbsp;·&nbsp; Same 5,036 images as SAM3 dataset</span>
+          <span class="rule-text">Brightness score &gt; {ad.threshold} → <span style="color:#e57373">ANOMALY</span> &nbsp;·&nbsp; 10,000 random images from Robinson production</span>
         </div>
 
         <!-- KPI -->
@@ -558,7 +626,7 @@
           <div class="kpi-card">
             <div class="kpi-label">Total Units Inspected</div>
             <div class="kpi-value">{fmtNum(ad.total)}</div>
-            <div class="kpi-sub">Jan 14, 2026</div>
+            <div class="kpi-sub">Sep 30 – Nov 12, 2025</div>
           </div>
           <div class="kpi-card">
             <div class="kpi-label">Anomalies</div>
@@ -637,7 +705,7 @@
                 <button class="gallery-card ad-gallery-card" onclick={() => (lightboxAdSample = sample)}>
                   <div class="gallery-img-wrap">
                     <img
-                      src="{import.meta.env.BASE_URL}ad-annotated/{sample.key}.jpg"
+                      src="{import.meta.env.BASE_URL}rob-seg-overlays/{sample.key}.jpg"
                       alt={sample.key}
                       loading="lazy"
                     />
@@ -655,6 +723,12 @@
       </div>
     {/if}
   {/if}
+
+  <!-- ── Robinson Diverse Dataset Tab ── -->
+  {#if activeSubTab === 'robinson'}
+    <RobinsonAnalyticsTab />
+  {/if}
+
 </div>
 
 <style>
@@ -863,10 +937,21 @@
   .gallery-card:hover { border-color: #70c1a3; transform: translateY(-1px); }
   .gallery-img-wrap { position: relative; aspect-ratio: 1; overflow: hidden; background: #111; }
   .gallery-img-pair { display: flex; aspect-ratio: 2 / 1; }
+  .gallery-img-triple { display: flex; aspect-ratio: 3 / 1; }
   .gallery-half { width: 50%; height: 100%; object-fit: cover; display: block; flex-shrink: 0; }
-  .sam3-gallery-card .gallery-img-wrap { aspect-ratio: 2 / 1; }
+  .gallery-third { width: 33.33%; height: 100%; object-fit: cover; display: block; flex-shrink: 0; }
+  .sam3-gallery-card .gallery-img-wrap { aspect-ratio: 3 / 1; }
   .ad-gallery-card .gallery-img-wrap { aspect-ratio: 2 / 1; }
   .ad-gallery-card { cursor: zoom-in; }
+  .rob-gallery-card .gallery-img-wrap { aspect-ratio: 2 / 1; }
+  .rob-gallery-card { cursor: zoom-in; }
+  .rob-meta-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .rob-bucket-pill { display: flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 20px; background: var(--surface-2); border: 1px solid var(--surface-border); }
+  .rob-bucket-label { font-size: 11px; color: var(--text-2); }
+  .rob-bucket-count { font-size: 11px; font-weight: 700; color: var(--text-1); }
+  .rob-cov   { font-size: 10px; font-weight: 600; }
+  .rob-bucket { font-size: 10px; color: var(--text-3); }
+  .chart-sub { font-size: 11px; color: var(--text-3); margin-bottom: 12px; margin-top: -4px; }
   .gallery-img-wrap img:not(.gallery-half) { width: 100%; height: 100%; object-fit: cover; display: block; }
   .gallery-badge {
     position: absolute; top: 5px; right: 5px;

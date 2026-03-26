@@ -21,34 +21,33 @@
   const MONTHS = ['January','February','March','April','May','June',
                   'July','August','September','October','November','December'];
   const PRESETS = [
-    { label: 'Today',        fn: () => today() },
-    { label: 'Yesterday',    fn: () => yesterday() },
-    { label: 'Last 7 days',  fn: () => lastN(7) },
-    { label: 'Last 30 days', fn: () => lastN(30) },
-    { label: 'Last 90 days', fn: () => lastN(90) },
-    { label: 'Last 12 months', fn: () => lastN(365) },
-    { label: 'All time',     fn: () => allTime() },
+    { label: 'Total period',  fn: () => applyPreset('2025-11-11', '2026-03-03'), group: 'AVK-Plast' },
+    { label: 'Stable period', fn: () => applyPreset('2026-01-19', '2026-01-30'), group: 'AVK-Plast' },
+    { label: 'Today',         fn: () => today(),   group: 'Relative' },
+    { label: 'Yesterday',     fn: () => yesterday(), group: 'Relative' },
+    { label: 'Last 7 days',   fn: () => lastN(7),  group: 'Relative' },
+    { label: 'Last 30 days',  fn: () => lastN(30), group: 'Relative' },
   ];
 
   function fmt(d: Date) {
     return d.toISOString().slice(0, 10);
   }
+  function applyPreset(s: string, e: string) {
+    startDate = s; endDate = e;
+    tempStart = s; tempEnd = e;
+    open = false;
+  }
   function today() {
-    const d = fmt(new Date());
-    tempStart = d; tempEnd = d; selecting = 'start';
+    const d = fmt(new Date()); applyPreset(d, d);
   }
   function yesterday() {
     const d = new Date(); d.setDate(d.getDate() - 1);
-    const s = fmt(d);
-    tempStart = s; tempEnd = s; selecting = 'start';
+    applyPreset(fmt(d), fmt(d));
   }
   function lastN(n: number) {
     const end = new Date();
     const start = new Date(); start.setDate(start.getDate() - n + 1);
-    tempStart = fmt(start); tempEnd = fmt(end); selecting = 'start';
-  }
-  function allTime() {
-    tempStart = '2025-11-11'; tempEnd = '2026-03-03'; selecting = 'start';
+    applyPreset(fmt(start), fmt(end));
   }
 
   function openPicker() {
@@ -159,11 +158,11 @@
   <div class="drp-popover">
     <!-- Presets -->
     <div class="drp-presets">
-      {#each PRESETS as p}
-        <button
-          class="drp-preset {tempStart === (p.label === 'All time' ? '2025-11-11' : '') ? 'active' : ''}"
-          onclick={p.fn}
-        >{p.label}</button>
+      {#each ['AVK-Plast', 'Relative'] as group}
+        <div class="drp-group-label">{group}</div>
+        {#each PRESETS.filter(p => p.group === group) as p}
+          <button class="drp-preset" onclick={p.fn}>{p.label}</button>
+        {/each}
       {/each}
     </div>
 
@@ -279,13 +278,19 @@
     min-width: 148px;
     gap: 2px;
   }
+  .drp-group-label {
+    padding: 8px 12px 4px;
+    font-size: 10px; text-transform: uppercase; letter-spacing: .6px;
+    color: var(--text-3); font-weight: 600;
+  }
+  .drp-group-label:first-child { padding-top: 2px; }
   .drp-preset {
     padding: 7px 12px; border-radius: 6px;
     font-size: 12px; color: var(--text-2);
     background: none; border: none; cursor: pointer;
     text-align: left; transition: background .1s, color .1s;
   }
-  .drp-preset:hover, .drp-preset.active { background: var(--surface-2); color: var(--text-1); }
+  .drp-preset:hover { background: var(--surface-2); color: var(--text-1); }
 
   /* Right panel */
   .drp-right {

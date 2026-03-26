@@ -3,14 +3,16 @@
   import PlayIcon from '@lucide/svelte/icons/play';
   import BarChart3Icon from '@lucide/svelte/icons/bar-chart-3';
   import DatabaseIcon from '@lucide/svelte/icons/database';
+  import FlaskConicalIcon from '@lucide/svelte/icons/flask-conical';
+  import FileTextIcon from '@lucide/svelte/icons/file-text';
   import SunIcon from '@lucide/svelte/icons/sun';
   import MoonIcon from '@lucide/svelte/icons/moon';
   import { themeStore } from '$lib/stores/theme.svelte';
 
   let {
-    activeTab = $bindable('editor' as 'editor' | 'run' | 'analytics' | 'dataset'),
+    activeTab = $bindable('editor' as 'editor' | 'run' | 'analytics' | 'dataset' | 'robinson' | 'robinson-report'),
   }: {
-    activeTab: 'editor' | 'run' | 'analytics' | 'dataset';
+    activeTab: 'editor' | 'run' | 'analytics' | 'dataset' | 'robinson' | 'robinson-report';
   } = $props();
 </script>
 
@@ -55,9 +57,29 @@
           ? 'bg-primary/20 text-primary'
           : 'text-muted-foreground hover:text-foreground hover:bg-sidebar-border'}"
       onclick={() => (activeTab = 'dataset')}
-      title="Real Dataset"
+      title="Real Dataset — AVK-Plast"
     >
       <DatabaseIcon class="size-4" />
+    </button>
+    <button
+      class="size-9 flex items-center justify-center rounded-md transition-colors
+        {activeTab === 'robinson'
+          ? 'bg-primary/20 text-primary'
+          : 'text-muted-foreground hover:text-foreground hover:bg-sidebar-border'}"
+      onclick={() => (activeTab = 'robinson')}
+      title="Real Dataset — Robinson Vision V1"
+    >
+      <FlaskConicalIcon class="size-4" />
+    </button>
+    <button
+      class="size-9 flex items-center justify-center rounded-md transition-colors
+        {activeTab === 'robinson-report'
+          ? 'bg-primary/20 text-primary'
+          : 'text-muted-foreground hover:text-foreground hover:bg-sidebar-border'}"
+      onclick={() => (activeTab = 'robinson-report')}
+      title="Robinson — Vision System V1 Report"
+    >
+      <FileTextIcon class="size-4" />
     </button>
   </div>
 
