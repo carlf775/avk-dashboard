@@ -18,7 +18,7 @@
   const store = createProgramStore();
   const modulesStore = createModulesStore();
   let showVersionTree = $state(false);
-  let activeTab = $state<'editor' | 'run' | 'analytics' | 'dataset' | 'robinson' | 'robinson-report'>('editor');
+  let activeTab = $state<'editor' | 'run' | 'analytics' | 'dataset' | 'robinson' | 'robinson-report'>('robinson');
 
   onMount(async () => {
     try {
